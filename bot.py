@@ -295,6 +295,23 @@ async def cmd_dong_bo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Đồng bộ xong. Dùng /trandau để xem.")
 
 
+async def cmd_users(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Admin xem toàn bộ users trong DB."""
+    if not is_admin(update.effective_user.id):
+        return
+    import aiosqlite
+    from config import DB_PATH
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT user_id, username, full_name, points FROM users ORDER BY user_id") as cur:
+            rows = [dict(r) for r in await cur.fetchall()]
+    lines = ["👥 <b>Toàn bộ users trong DB:</b>\n"]
+    for r in rows:
+        sign = "+" if r["points"] >= 0 else ""
+        lines.append(f"ID: <code>{r['user_id']}</code> | @{r['username']} | {r['full_name']} | {sign}{r['points']:.1f}đ")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
 async def cmd_seed_2906(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Seed dữ liệu lịch sử 2 trận 29/06. Chỉ dùng 1 lần."""
     if not is_admin(update.effective_user.id):
@@ -482,6 +499,7 @@ def main():
     app.add_handler(CommandHandler("dong_bo",    cmd_dong_bo))
     app.add_handler(CommandHandler("sync",       cmd_sync))
     app.add_handler(CommandHandler("seed_2906",  cmd_seed_2906))
+    app.add_handler(CommandHandler("users",      cmd_users))
     app.add_handler(CommandHandler("admin",      cmd_admin_help))
 
     app.add_handler(PollAnswerHandler(handle_poll_answer))
