@@ -319,16 +319,45 @@ async def cmd_reset_fake(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     import aiosqlite
     from config import DB_PATH
     async with aiosqlite.connect(DB_PATH) as db:
-        # Xoá predictions của fake users
         await db.execute("DELETE FROM predictions WHERE user_id < 0")
-        # Xoá fake users
         await db.execute("DELETE FROM users WHERE user_id < 0")
-        # Reset điểm real users về 0
         await db.execute("UPDATE users SET points = 0 WHERE user_id > 0")
-        # Reset match status để tính lại
         await db.execute("UPDATE matches SET status = 'SCHEDULED' WHERE ext_id IN ('553123','553124')")
         await db.commit()
-    await update.message.reply_text("✅ Đã xoá fake data. Nhờ mọi người gõ /start để lấy real ID, rồi dùng /users kiểm tra, sau đó /seed_2906 để re-seed.")
+    await update.message.reply_text("✅ Done /reset_fake.")
+
+
+async def cmd_full_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Xoá TOÀN BỘ dữ liệu lịch sử 2 trận 29/06 và reset sạch để seed lại."""
+    if not is_admin(update.effective_user.id):
+        return
+    import aiosqlite
+    from config import DB_PATH
+    async with aiosqlite.connect(DB_PATH) as conn:
+        # Lấy match_id của 2 trận lịch sử
+        async with conn.execute(
+            "SELECT match_id FROM matches WHERE ext_id IN ('553123','553124')"
+        ) as cur:
+            match_ids = [r[0] for r in await cur.fetchall()]
+
+        # Xoá toàn bộ predictions của 2 trận đó
+        for mid in match_ids:
+            await conn.execute("DELETE FROM predictions WHERE match_id = ?", (mid,))
+
+        # Xoá toàn bộ user (kể cả real) — sẽ tự đăng ký lại qua /start
+        await conn.execute("DELETE FROM users")
+
+        # Reset match status
+        await conn.execute(
+            "UPDATE matches SET status = 'SCHEDULED', result = NULL, home_score = NULL, away_score = NULL "
+            "WHERE ext_id IN ('553123','553124')"
+        )
+        await conn.commit()
+
+    await update.message.reply_text(
+        "✅ Đã xoá sạch toàn bộ dữ liệu 2 trận 29/06 và users.\n"
+        "Nhờ tất cả mọi người gõ /start lại, sau đó chạy /seed_2906."
+    )
 
 
 async def cmd_seed_2906(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -520,6 +549,7 @@ def main():
     app.add_handler(CommandHandler("seed_2906",  cmd_seed_2906))
     app.add_handler(CommandHandler("users",      cmd_users))
     app.add_handler(CommandHandler("reset_fake", cmd_reset_fake))
+    app.add_handler(CommandHandler("full_reset", cmd_full_reset))
     app.add_handler(CommandHandler("admin",      cmd_admin_help))
 
     app.add_handler(PollAnswerHandler(handle_poll_answer))
