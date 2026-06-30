@@ -312,6 +312,25 @@ async def cmd_users(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
+async def cmd_reset_fake(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Xoá toàn bộ fake user (ID âm) và reset điểm real user về 0."""
+    if not is_admin(update.effective_user.id):
+        return
+    import aiosqlite
+    from config import DB_PATH
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Xoá predictions của fake users
+        await db.execute("DELETE FROM predictions WHERE user_id < 0")
+        # Xoá fake users
+        await db.execute("DELETE FROM users WHERE user_id < 0")
+        # Reset điểm real users về 0
+        await db.execute("UPDATE users SET points = 0 WHERE user_id > 0")
+        # Reset match status để tính lại
+        await db.execute("UPDATE matches SET status = 'SCHEDULED' WHERE ext_id IN ('553123','553124')")
+        await db.commit()
+    await update.message.reply_text("✅ Đã xoá fake data. Nhờ mọi người gõ /start để lấy real ID, rồi dùng /users kiểm tra, sau đó /seed_2906 để re-seed.")
+
+
 async def cmd_seed_2906(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Seed dữ liệu lịch sử 2 trận 29/06. Chỉ dùng 1 lần."""
     if not is_admin(update.effective_user.id):
@@ -500,6 +519,7 @@ def main():
     app.add_handler(CommandHandler("sync",       cmd_sync))
     app.add_handler(CommandHandler("seed_2906",  cmd_seed_2906))
     app.add_handler(CommandHandler("users",      cmd_users))
+    app.add_handler(CommandHandler("reset_fake", cmd_reset_fake))
     app.add_handler(CommandHandler("admin",      cmd_admin_help))
 
     app.add_handler(PollAnswerHandler(handle_poll_answer))
