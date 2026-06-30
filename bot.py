@@ -533,9 +533,8 @@ async def cmd_fix_points(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     async with aiosqlite.connect(DB_PATH) as conn:
         for uid, pts in POINTS.items():
             await conn.execute(
-                "INSERT INTO users (user_id, points) VALUES (?, ?) "
-                "ON CONFLICT(user_id) DO UPDATE SET points=excluded.points",
-                (uid, pts)
+                "UPDATE users SET points=? WHERE user_id=?",
+                (pts, uid)
             )
         await conn.commit()
     lines = ["✅ <b>Đã cập nhật điểm 2 trận 29/06:</b>\n"]
