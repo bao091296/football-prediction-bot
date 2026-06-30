@@ -604,7 +604,8 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 
 async def force_fix_points():
     """Luôn set đúng điểm cho 8 người vote 29/06 khi bot khởi động."""
-    import sys, aiosqlite
+    logger.info("[fix] >>> force_fix_points bắt đầu")
+    import aiosqlite
     from config import DB_PATH
     VOTERS = [
         (8814280223, "Zane1602",    "Zane",          -20.0),
@@ -616,8 +617,8 @@ async def force_fix_points():
         (1762927178, "TommyH0",     "Tommy 🐾",      -100.0),
         (934622455,  "pevitsocute", "Vịt Tư Mã",    -100.0),
     ]
-    print("[fix] force_fix_points bắt đầu chạy...", flush=True)
     try:
+        logger.info(f"[fix] DB_PATH={DB_PATH}")
         async with aiosqlite.connect(DB_PATH) as conn:
             conn.row_factory = aiosqlite.Row
             for uid, uname, fname, pts in VOTERS:
@@ -626,17 +627,17 @@ async def force_fix_points():
                     "ON CONFLICT(user_id) DO UPDATE SET points=excluded.points",
                     (uid, uname, fname, pts)
                 )
-                print(f"[fix] user {uid} ({fname}) → {pts}đ", flush=True)
+                logger.info(f"[fix] {fname} ({uid}) → {pts}đ")
             await conn.commit()
-        print("[fix] ✅ force_fix_points xong.", flush=True)
-        logger.info("[fix] ✅ force_fix_points đã set điểm cho 8 voters.")
+        logger.info("[fix] ✅ force_fix_points xong.")
     except Exception as e:
-        print(f"[fix] LỖI: {e}", flush=True)
         logger.error(f"[fix] Lỗi: {e}", exc_info=True)
 
 
 async def post_init(app: Application):
+    logger.info("[post_init] >>> bắt đầu")
     await db.init_db()
+    logger.info("[post_init] init_db xong, bắt đầu force_fix_points")
     await force_fix_points()
     sched.start_scheduler(app)
     asyncio.create_task(sched.job_sync_upcoming_matches())
