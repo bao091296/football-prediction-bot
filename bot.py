@@ -512,6 +512,39 @@ async def seed_history():
         logger.info("[seed] ✅ Seed xong! Điểm kỳ vọng: %s", expected_points)
 
 
+async def cmd_fix_points(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Set thẳng điểm đúng cho 8 người vote 29/06."""
+    if not is_admin(update.effective_user.id):
+        return
+    import aiosqlite
+    from config import DB_PATH
+    # Brazil-Japan: HOME_WIN → 5 đúng (+30đ), 3 sai (-50đ)
+    # Germany-Paraguay: DRAW → 8 sai (-50đ), không ai đúng
+    POINTS = {
+        8814280223: -20.0,   # Zane: +30 -50
+        1682575734: -20.0,   # Alie: +30 -50
+        822425008:  -20.0,   # Andy: +30 -50
+        5200492637: -20.0,   # Aron: +30 -50
+        5138244411: -20.0,   # Hercules: +30 -50
+        1800116341: -100.0,  # Bugi: -50 -50
+        1762927178: -100.0,  # Tommy: -50 -50
+        934622455:  -100.0,  # Vịt Tư Mã: -50 -50
+    }
+    async with aiosqlite.connect(DB_PATH) as conn:
+        for uid, pts in POINTS.items():
+            await conn.execute(
+                "INSERT INTO users (user_id, points) VALUES (?, ?) "
+                "ON CONFLICT(user_id) DO UPDATE SET points=excluded.points",
+                (uid, pts)
+            )
+        await conn.commit()
+    lines = ["✅ <b>Đã cập nhật điểm 2 trận 29/06:</b>\n"]
+    for uid, pts in POINTS.items():
+        sign = "+" if pts >= 0 else ""
+        lines.append(f"ID {uid}: {sign}{pts:.1f}đ")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
 async def cmd_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Admin trigger đồng bộ kết quả + tính điểm ngay lập tức."""
     if not is_admin(update.effective_user.id):
@@ -612,6 +645,7 @@ def main():
     app.add_handler(CommandHandler("cap_nhat",   cmd_cap_nhat))
     app.add_handler(CommandHandler("dong_bo",    cmd_dong_bo))
     app.add_handler(CommandHandler("sync",       cmd_sync))
+    app.add_handler(CommandHandler("fix_points", cmd_fix_points))
     app.add_handler(CommandHandler("users",      cmd_users))
     app.add_handler(CommandHandler("full_reset", cmd_full_reset))
     app.add_handler(CommandHandler("admin",      cmd_admin_help))
