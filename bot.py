@@ -341,10 +341,10 @@ async def cmd_seed_2906(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         (1682575734, "alieforreal",   "Alie 🅱"),
         (-3,         "coincu_anhan",  "Coincu Anh An"),  # TODO: chưa có real ID
         (5200492637, "Aron713",       "Aron"),
-        (-5,         "coincu_quyn",   "Coincu Quyn"),    # TODO: chưa có real ID
+        (5138244411, "",              "Hercules"),
         (1800116341, "bugi_coincu",   "Bugi | Coincu"),
         (1762927178, "TommyH0",       "Tommy 🐾"),
-        (-8,         "tran_son",      "Trần Sơn"),       # TODO: chưa có real ID
+        (934622455,  "",              "Vịt Tư Mã"),
     ]
     MATCHES = [
         {
@@ -352,14 +352,14 @@ async def cmd_seed_2906(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "match_time": "2026-06-29T17:00:00Z", "result": "HOME_WIN",
             "home_score": 2, "away_score": 1,
             "preds": {-1:"HOME_WIN",1682575734:"HOME_WIN",-3:"HOME_WIN",5200492637:"HOME_WIN",
-                      -5:"HOME_WIN",1800116341:"DRAW",1762927178:"DRAW",-8:"DRAW"},
+                      5138244411:"HOME_WIN",1800116341:"DRAW",1762927178:"DRAW",934622455:"DRAW"},
         },
         {
             "ext_id": "553124", "home_team": "Germany", "away_team": "Paraguay",
             "match_time": "2026-06-29T20:30:00Z", "result": "DRAW",
             "home_score": 1, "away_score": 1,  # tỉ số 90 phút chính thức
             "preds": {1800116341:"HOME_WIN",1762927178:"HOME_WIN",1682575734:"HOME_WIN",-3:"HOME_WIN",
-                      5200492637:"HOME_WIN",-8:"HOME_WIN",-5:"HOME_WIN",-1:"AWAY_WIN"},
+                      5200492637:"HOME_WIN",934622455:"HOME_WIN",5138244411:"HOME_WIN",-1:"AWAY_WIN"},
         },
     ]
 
