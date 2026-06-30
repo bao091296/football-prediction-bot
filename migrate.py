@@ -1,15 +1,13 @@
 """
-Migration chạy một lần trước khi bot khởi động.
-Xoá sạch DB cũ và seed đúng dữ liệu 2 trận 29/06.
+Chạy trước bot.py: xoá sạch DB và seed đúng dữ liệu 2 trận 29/06.
+Chỉ chạy nếu chưa có dữ liệu (predictions = 0).
 """
-import asyncio
-import aiosqlite
-import os
+import asyncio, aiosqlite, os, sys
 
 DB_PATH = os.getenv("DB_PATH", "football_bot.db")
-POINTS_DEDUCT = 50
+DEDUCT  = 50
 
-USERS = [
+VOTERS = [
     (8814280223, "Zane1602",    "Zane"),
     (1682575734, "alieforreal", "Alie"),
     (822425008,  "Andy_cc",     "Andy"),
@@ -20,104 +18,100 @@ USERS = [
     (934622455,  "pevitsocute", "Vịt Tư Mã"),
 ]
 
+# Brazil vs Japan: HOME_WIN (2-1)
+# Germany vs Paraguay: DRAW (1-1 trong 90 phút)
 MATCHES = [
     {
-        "ext_id": "553123", "home_team": "Brazil", "away_team": "Japan",
-        "match_time": "2026-06-29T17:00:00Z", "result": "HOME_WIN",
-        "home_score": 2, "away_score": 1,
+        "ext_id": "553123", "home": "Brazil", "away": "Japan",
+        "time": "2026-06-29T17:00:00Z", "result": "HOME_WIN",
+        "hs": 2, "as": 1,
         "preds": {
-            8814280223: "HOME_WIN",  # Zane   → đúng
-            1682575734: "HOME_WIN",  # Alie   → đúng
-            822425008:  "HOME_WIN",  # Andy   → đúng
-            5200492637: "HOME_WIN",  # Aron   → đúng
-            5138244411: "HOME_WIN",  # Hercules → đúng
-            1800116341: "DRAW",      # Bugi   → sai
-            1762927178: "DRAW",      # Tommy  → sai
-            934622455:  "DRAW",      # Vịt Tư Mã → sai
+            8814280223:"HOME_WIN", 1682575734:"HOME_WIN", 822425008:"HOME_WIN",
+            5200492637:"HOME_WIN", 5138244411:"HOME_WIN",
+            1800116341:"DRAW",    1762927178:"DRAW",     934622455:"DRAW",
         },
     },
     {
-        "ext_id": "553124", "home_team": "Germany", "away_team": "Paraguay",
-        "match_time": "2026-06-29T20:30:00Z", "result": "DRAW",
-        "home_score": 1, "away_score": 1,
+        "ext_id": "553124", "home": "Germany", "away": "Paraguay",
+        "time": "2026-06-29T20:30:00Z", "result": "DRAW",
+        "hs": 1, "as": 1,
         "preds": {
-            8814280223: "AWAY_WIN",  # Zane   → sai
-            1682575734: "HOME_WIN",  # Alie   → sai
-            822425008:  "HOME_WIN",  # Andy   → sai
-            5200492637: "HOME_WIN",  # Aron   → sai
-            5138244411: "HOME_WIN",  # Hercules → sai
-            1800116341: "HOME_WIN",  # Bugi   → sai
-            1762927178: "HOME_WIN",  # Tommy  → sai
-            934622455:  "HOME_WIN",  # Vịt Tư Mã → sai
+            8814280223:"AWAY_WIN", 1682575734:"HOME_WIN", 822425008:"HOME_WIN",
+            5200492637:"HOME_WIN", 5138244411:"HOME_WIN", 1800116341:"HOME_WIN",
+            1762927178:"HOME_WIN", 934622455:"HOME_WIN",
         },
     },
 ]
 
+async def main():
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
 
-async def run():
-    async with aiosqlite.connect(DB_PATH) as conn:
-        conn.row_factory = aiosqlite.Row
+        # Kiểm tra xem đã seed chưa (đúng dữ liệu)
+        async with db.execute(
+            "SELECT COUNT(*) as c FROM predictions p "
+            "JOIN matches m ON p.match_id=m.match_id "
+            "WHERE m.ext_id IN ('553123','553124') AND p.user_id > 0"
+        ) as cur:
+            row = await cur.fetchone()
+            if row["c"] >= 16:   # 8 preds × 2 trận
+                print("✅ Dữ liệu lịch sử đã đúng, bỏ qua migrate.")
+                return
 
-        # Xoá sạch
-        await conn.execute("DELETE FROM predictions")
-        await conn.execute("DELETE FROM users")
-        await conn.execute(
-            "UPDATE matches SET status='SCHEDULED', result=NULL, home_score=NULL, away_score=NULL "
+        print("🔄 Bắt đầu migrate dữ liệu lịch sử 29/06...")
+
+        # Xoá sạch dữ liệu cũ (kể cả fake ID)
+        await db.execute("DELETE FROM predictions")
+        await db.execute("DELETE FROM users")
+        await db.execute(
+            "UPDATE matches SET status='SCHEDULED',result=NULL,home_score=NULL,away_score=NULL "
             "WHERE ext_id IN ('553123','553124')"
         )
-        await conn.commit()
-        print("✅ Đã xoá sạch predictions + users")
 
-        # Seed users
-        for uid, username, full_name in USERS:
-            await conn.execute(
-                "INSERT INTO users (user_id, username, full_name, points) VALUES (?,?,?,0) "
-                "ON CONFLICT(user_id) DO UPDATE SET username=excluded.username, full_name=excluded.full_name, points=0",
-                (uid, username, full_name)
+        # Insert 8 voters
+        for uid, uname, fname in VOTERS:
+            await db.execute(
+                "INSERT INTO users (user_id,username,full_name,points) VALUES (?,?,?,0)",
+                (uid, uname, fname)
             )
 
-        # Seed matches + predictions + điểm
+        # Tính và insert predictions + điểm cho từng trận
         for m in MATCHES:
-            await conn.execute("""
-                INSERT INTO matches (ext_id,home_team,away_team,competition,match_time,status,result,home_score,away_score)
-                VALUES (?,?,?,'WC',?,'FINISHED',?,?,?)
-                ON CONFLICT(ext_id) DO UPDATE SET
-                    status='FINISHED', result=excluded.result,
-                    home_score=excluded.home_score, away_score=excluded.away_score
-            """, (m["ext_id"], m["home_team"], m["away_team"], m["match_time"],
-                  m["result"], m["home_score"], m["away_score"]))
-
-            async with conn.execute("SELECT match_id FROM matches WHERE ext_id=?", (m["ext_id"],)) as cur:
+            await db.execute(
+                "INSERT INTO matches (ext_id,home_team,away_team,competition,match_time,status,result,home_score,away_score) "
+                "VALUES (?,?,?,'WC',?,'FINISHED',?,?,?) "
+                "ON CONFLICT(ext_id) DO UPDATE SET status='FINISHED',result=excluded.result,"
+                "home_score=excluded.home_score,away_score=excluded.away_score",
+                (m["ext_id"],m["home"],m["away"],m["time"],m["result"],m["hs"],m["as"])
+            )
+            async with db.execute("SELECT match_id FROM matches WHERE ext_id=?", (m["ext_id"],)) as cur:
                 match_id = (await cur.fetchone())[0]
 
-            result  = m["result"]
             preds   = m["preds"]
-            correct = [uid for uid, p in preds.items() if p == result]
-            wrong   = [uid for uid, p in preds.items() if p != result]
-            gain    = (len(wrong) * POINTS_DEDUCT / len(correct)) if correct else 0
+            correct = [uid for uid,p in preds.items() if p == m["result"]]
+            wrong   = [uid for uid,p in preds.items() if p != m["result"]]
+            gain    = (len(wrong) * DEDUCT / len(correct)) if correct else 0
 
             for uid, pred in preds.items():
-                is_c  = 1 if pred == result else 0
-                delta = gain if is_c else -POINTS_DEDUCT
-                await conn.execute("""
-                    INSERT INTO predictions (user_id, match_id, prediction, is_correct, points_delta)
-                    VALUES (?,?,?,?,?)
-                    ON CONFLICT(user_id, match_id) DO UPDATE SET
-                        prediction=excluded.prediction, is_correct=excluded.is_correct, points_delta=excluded.points_delta
-                """, (uid, match_id, pred, is_c, delta))
-                await conn.execute(
-                    "UPDATE users SET points = points + ? WHERE user_id = ?", (delta, uid)
+                is_c  = 1 if pred == m["result"] else 0
+                delta = gain if is_c else -DEDUCT
+                await db.execute(
+                    "INSERT INTO predictions (user_id,match_id,prediction,is_correct,points_delta) VALUES (?,?,?,?,?)",
+                    (uid, match_id, pred, is_c, delta)
                 )
+                await db.execute("UPDATE users SET points=points+? WHERE user_id=?", (delta, uid))
 
-            print(f"⚽ {m['home_team']} vs {m['away_team']}: {len(correct)} đúng (+{gain:.1f}đ), {len(wrong)} sai (-50đ)")
+            print(f"⚽ {m['home']} vs {m['away']}: {len(correct)} đúng (+{gain:.1f}đ), {len(wrong)} sai (-{DEDUCT}đ)")
 
-        await conn.commit()
+        await db.commit()
 
         # In BXH
-        print("\n🏆 Bảng xếp hạng:")
-        async with conn.execute("SELECT full_name, points FROM users ORDER BY points DESC") as cur:
+        print("\n🏆 Bảng xếp hạng sau migrate:")
+        async with db.execute("SELECT full_name,points FROM users ORDER BY points DESC") as cur:
             for i, row in enumerate(await cur.fetchall(), 1):
                 sign = "+" if row["points"] >= 0 else ""
                 print(f"  {i}. {row['full_name']}: {sign}{row['points']:.1f}đ")
 
-asyncio.run(run())
+        print("\n✅ Migrate xong!")
+
+asyncio.run(main())
