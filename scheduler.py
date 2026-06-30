@@ -81,6 +81,19 @@ async def job_create_polls():
                 poll_id        = msg.poll.id,
                 chat_id        = chat_id,
             )
+
+            # Gửi tin nhắn tag toàn bộ user nhắc vote
+            users = await db.get_leaderboard(100)
+            if users:
+                tags = " ".join(
+                    f"[{u['full_name']}](tg://user?id={u['user_id']})" for u in users
+                )
+                await _bot_app.bot.send_message(
+                    chat_id           = chat_id,
+                    message_thread_id = CHAT_THREAD_ID,
+                    text              = f"🗳 Vote thôi anh em ơi!!!\n{tags}",
+                    parse_mode        = "Markdown",
+                )
             logger.info(f"[scheduler] Đã tạo poll trận {match['match_id']}")
     except Exception as e:
         logger.error(f"[scheduler] Lỗi tạo poll: {e}")
