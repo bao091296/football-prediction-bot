@@ -295,6 +295,16 @@ async def cmd_dong_bo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Đồng bộ xong. Dùng /trandau để xem.")
 
 
+async def cmd_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Admin trigger đồng bộ kết quả + tính điểm ngay lập tức."""
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ Bạn không có quyền dùng lệnh này.")
+        return
+    await update.message.reply_text("⏳ Đang kiểm tra kết quả và tính điểm...")
+    await sched.job_sync_results()
+    await update.message.reply_text("✅ Xong. Nếu có kết quả mới sẽ thấy thông báo trong topic.")
+
+
 async def cmd_admin_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return
@@ -381,6 +391,7 @@ def main():
     app.add_handler(CommandHandler("tao_poll",   cmd_tao_poll))
     app.add_handler(CommandHandler("cap_nhat",   cmd_cap_nhat))
     app.add_handler(CommandHandler("dong_bo",    cmd_dong_bo))
+    app.add_handler(CommandHandler("sync",       cmd_sync))
     app.add_handler(CommandHandler("admin",      cmd_admin_help))
 
     app.add_handler(PollAnswerHandler(handle_poll_answer))

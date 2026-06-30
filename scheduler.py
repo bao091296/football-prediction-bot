@@ -92,11 +92,23 @@ async def job_sync_results():
         return
     logger.info("[scheduler] Kiểm tra kết quả trận...")
     try:
-        # Bước 1: Lấy kết quả từ API, cập nhật DB
+        # Bước 1: Lấy kết quả từ API, upsert vào DB rồi cập nhật kết quả
         finished_from_api = await api.fetch_finished_matches(days_back=2)
+        groups = await db.get_all_groups()
+        default_chat = groups[0] if groups else None
+
         for m in finished_from_api:
             if not m["result"]:
                 continue
+            # Upsert để đảm bảo trận luôn có trong DB dù chưa được sync lịch
+            await db.upsert_match(
+                home_team   = m["home_team"],
+                away_team   = m["away_team"],
+                match_time  = m["match_time"],
+                competition = m["competition"],
+                ext_id      = m["ext_id"],
+                chat_id     = default_chat,
+            )
             match = await db.get_match_by_ext_id(m["ext_id"])
             if not match:
                 continue
