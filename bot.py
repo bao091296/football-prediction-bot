@@ -514,34 +514,35 @@ async def seed_history():
 
 async def cmd_fix_points(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Set thẳng điểm đúng cho 8 người vote 29/06."""
+    logger.info(f"[fix_points] Gọi bởi user {update.effective_user.id if update.effective_user else 'unknown'}")
     if not is_admin(update.effective_user.id):
+        await update.effective_message.reply_text("⛔ Không có quyền.")
         return
     import aiosqlite
     from config import DB_PATH
-    # Brazil-Japan: HOME_WIN → 5 đúng (+30đ), 3 sai (-50đ)
-    # Germany-Paraguay: DRAW → 8 sai (-50đ), không ai đúng
     POINTS = {
-        8814280223: -20.0,   # Zane: +30 -50
-        1682575734: -20.0,   # Alie: +30 -50
-        822425008:  -20.0,   # Andy: +30 -50
-        5200492637: -20.0,   # Aron: +30 -50
-        5138244411: -20.0,   # Hercules: +30 -50
-        1800116341: -100.0,  # Bugi: -50 -50
-        1762927178: -100.0,  # Tommy: -50 -50
-        934622455:  -100.0,  # Vịt Tư Mã: -50 -50
+        8814280223: -20.0,   # Zane
+        1682575734: -20.0,   # Alie
+        822425008:  -20.0,   # Andy
+        5200492637: -20.0,   # Aron
+        5138244411: -20.0,   # Hercules
+        1800116341: -100.0,  # Bugi
+        1762927178: -100.0,  # Tommy
+        934622455:  -100.0,  # Vịt Tư Mã
     }
+    lines = ["✅ <b>Kết quả /fix_points:</b>\n"]
     async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
         for uid, pts in POINTS.items():
-            await conn.execute(
-                "UPDATE users SET points=? WHERE user_id=?",
-                (pts, uid)
-            )
+            await conn.execute("UPDATE users SET points=? WHERE user_id=?", (pts, uid))
+            async with conn.execute("SELECT full_name, points FROM users WHERE user_id=?", (uid,)) as cur:
+                row = await cur.fetchone()
+                if row:
+                    lines.append(f"✓ {row['full_name']}: {row['points']:.1f}đ")
+                else:
+                    lines.append(f"⚠️ ID {uid} không tìm thấy trong DB!")
         await conn.commit()
-    lines = ["✅ <b>Đã cập nhật điểm 2 trận 29/06:</b>\n"]
-    for uid, pts in POINTS.items():
-        sign = "+" if pts >= 0 else ""
-        lines.append(f"ID {uid}: {sign}{pts:.1f}đ")
-    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+    await update.effective_message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
 async def cmd_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
