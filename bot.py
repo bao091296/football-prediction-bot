@@ -25,7 +25,11 @@ import scheduler as sched
 logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     level=logging.INFO,
+    force=True,
 )
+# Đảm bảo log ra stdout để Railway capture được
+import sys
+logging.getLogger().handlers[0].stream = sys.stdout
 logger = logging.getLogger(__name__)
 
 
@@ -332,6 +336,10 @@ async def handle_poll_answer(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    logger.error("Lỗi bot: %s", context.error, exc_info=context.error)
+
+
 async def post_init(app: Application):
     await db.init_db()
     sched.start_scheduler(app)
@@ -374,6 +382,7 @@ def main():
     app.add_handler(CommandHandler("admin",      cmd_admin_help))
 
     app.add_handler(PollAnswerHandler(handle_poll_answer))
+    app.add_error_handler(error_handler)
 
     logger.info("Bot đang khởi động...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
