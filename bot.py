@@ -608,14 +608,14 @@ async def force_fix_points():
     import aiosqlite
     from config import DB_PATH
     VOTERS = [
-        (8814280223, "Zane1602",    "Zane",          -20.0),
-        (1682575734, "alieforreal", "Alie",           -20.0),
-        (822425008,  "Andy_cc",     "Andy",           -20.0),
-        (5200492637, "Aron713",     "Aron",           -20.0),
-        (5138244411, "qle23",       "Hercules 🐾",    -20.0),
-        (1800116341, "bugicoincu",  "Bugi | Coincu", -100.0),
-        (1762927178, "TommyH0",     "Tommy 🐾",      -100.0),
-        (934622455,  "pevitsocute", "Vịt Tư Mã",    -100.0),
+        (8814280223, "Zane1602",    "Zane",           30.0),
+        (1682575734, "alieforreal", "Alie",            30.0),
+        (822425008,  "Andy_cc",     "Andy",            30.0),
+        (5200492637, "Aron713",     "Aron",            30.0),
+        (5138244411, "qle23",       "Hercules 🐾",     30.0),
+        (1800116341, "bugicoincu",  "Bugi | Coincu",  -50.0),
+        (1762927178, "TommyH0",     "Tommy 🐾",       -50.0),
+        (934622455,  "pevitsocute", "Vịt Tư Mã",     -50.0),
     ]
     try:
         logger.info(f"[fix] DB_PATH={DB_PATH}")

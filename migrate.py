@@ -43,7 +43,7 @@ MATCHES = [
     },
 ]
 
-# Tính điểm kỳ vọng cho từng voter
+# Tính điểm kỳ vọng cho từng voter (áp dụng luật mới: all-correct/all-wrong → ±0)
 def calc_expected():
     pts = {uid: 0.0 for uid, _, _ in VOTERS}
     for m in MATCHES:
@@ -51,7 +51,10 @@ def calc_expected():
         preds   = m["preds"]
         correct = [u for u, p in preds.items() if p == result]
         wrong   = [u for u, p in preds.items() if p != result]
-        gain    = (len(wrong) * DEDUCT / len(correct)) if correct else 0
+        # Luật mới: tất cả đúng hoặc tất cả sai → không tính điểm
+        if not correct or not wrong:
+            continue
+        gain = len(wrong) * DEDUCT / len(correct)
         for uid, pred in preds.items():
             pts[uid] += gain if pred == result else -DEDUCT
     return pts
@@ -106,11 +109,13 @@ async def main():
             preds   = m["preds"]
             correct = [u for u, p in preds.items() if p == result]
             wrong   = [u for u, p in preds.items() if p != result]
-            gain    = (len(wrong) * DEDUCT / len(correct)) if correct else 0
+            # Luật mới: tất cả đúng hoặc tất cả sai → ±0
+            no_change = not correct or not wrong
+            gain = (len(wrong) * DEDUCT / len(correct)) if (correct and not no_change) else 0
 
             for uid, pred in preds.items():
                 is_c  = 1 if pred == result else 0
-                delta = gain if is_c else -DEDUCT
+                delta = 0 if no_change else (gain if is_c else -DEDUCT)
                 await db.execute(
                     "INSERT INTO predictions (user_id,match_id,prediction,is_correct,points_delta) VALUES (?,?,?,?,?) "
                     "ON CONFLICT(user_id,match_id) DO UPDATE SET prediction=excluded.prediction,"
