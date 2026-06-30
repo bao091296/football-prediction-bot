@@ -2,5 +2,6 @@
 builder = "nixpacks"
 
 [deploy]
+startCommand = "python migrate.py && python bot.py"
 restartPolicyType = "always"
 restartPolicyMaxRetries = 10
