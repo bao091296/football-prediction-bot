@@ -313,7 +313,7 @@ async def cmd_users(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_full_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Xoá TOÀN BỘ predictions + users để bot tự seed lại khi restart."""
+    """Xoá TOÀN BỘ predictions + users rồi tự seed lại dữ liệu lịch sử."""
     if not is_admin(update.effective_user.id):
         return
     import aiosqlite
@@ -326,7 +326,8 @@ async def cmd_full_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "WHERE ext_id IN ('553123','553124')"
         )
         await conn.commit()
-    await update.message.reply_text("✅ Đã xoá sạch. Bot sẽ tự seed lại dữ liệu 29/06 sau khi restart.")
+    await seed_history()
+    await update.message.reply_text("✅ Đã xoá sạch và seed lại dữ liệu 29/06. Nhờ mọi người gõ /start để cập nhật tên.")
 
 
 async def seed_history():
