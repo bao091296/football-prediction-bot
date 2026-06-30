@@ -328,35 +328,22 @@ async def cmd_reset_fake(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_full_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Xoá TOÀN BỘ dữ liệu lịch sử 2 trận 29/06 và reset sạch để seed lại."""
+    """Xoá TOÀN BỘ predictions + users, reset matches 29/06 để seed lại sạch."""
     if not is_admin(update.effective_user.id):
         return
     import aiosqlite
     from config import DB_PATH
     async with aiosqlite.connect(DB_PATH) as conn:
-        # Lấy match_id của 2 trận lịch sử
-        async with conn.execute(
-            "SELECT match_id FROM matches WHERE ext_id IN ('553123','553124')"
-        ) as cur:
-            match_ids = [r[0] for r in await cur.fetchall()]
-
-        # Xoá toàn bộ predictions của 2 trận đó
-        for mid in match_ids:
-            await conn.execute("DELETE FROM predictions WHERE match_id = ?", (mid,))
-
-        # Xoá toàn bộ user (kể cả real) — sẽ tự đăng ký lại qua /start
+        await conn.execute("DELETE FROM predictions")
         await conn.execute("DELETE FROM users")
-
-        # Reset match status
         await conn.execute(
-            "UPDATE matches SET status = 'SCHEDULED', result = NULL, home_score = NULL, away_score = NULL "
+            "UPDATE matches SET status='SCHEDULED', result=NULL, home_score=NULL, away_score=NULL "
             "WHERE ext_id IN ('553123','553124')"
         )
         await conn.commit()
-
     await update.message.reply_text(
-        "✅ Đã xoá sạch toàn bộ dữ liệu 2 trận 29/06 và users.\n"
-        "Nhờ tất cả mọi người gõ /start lại, sau đó chạy /seed_2906."
+        "✅ Đã xoá sạch toàn bộ predictions + users.\n"
+        "Nhờ tất cả 11 người gõ /start lại, sau đó chạy /seed_2906."
     )
 
 
@@ -366,14 +353,14 @@ async def cmd_seed_2906(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     USERS = [
-        (8814280223, "Zane1602",      "Zane"),
-        (1682575734, "alieforreal",   "Alie 🅱"),
-        (822425008,  "Andy_cc",        "Andy"),
-        (5200492637, "Aron713",       "Aron"),
-        (5138244411, "",              "Hercules"),
-        (1800116341, "bugi_coincu",   "Bugi | Coincu"),
-        (1762927178, "TommyH0",       "Tommy 🐾"),
-        (934622455,  "",              "Vịt Tư Mã"),
+        (8814280223, "Zane1602",    "Zane"),
+        (1682575734, "alieforreal", "Alie"),
+        (822425008,  "Andy_cc",     "Andy"),
+        (5200492637, "Aron713",     "Aron"),
+        (5138244411, "qle23",       "Hercules 🐾"),
+        (1800116341, "bugicoincu",  "Bugi | Coincu"),
+        (1762927178, "TommyH0",     "Tommy 🐾"),
+        (934622455,  "pevitsocute", "Vịt Tư Mã"),
     ]
     MATCHES = [
         {
