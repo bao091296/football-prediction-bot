@@ -21,6 +21,7 @@ WATCHED_COMPETITIONS = os.getenv(
 POINTS_DEDUCT = 50          # Điểm trừ khi đoán sai / không đoán
 POLL_OPEN_HOURS_BEFORE = 12  # Mở poll trước trận bao nhiêu tiếng
 POLL_CLOSE_MINUTES_BEFORE = 5  # Đóng poll trước giờ đá bao nhiêu phút
+CHAT_THREAD_ID = int(os.getenv("CHAT_THREAD_ID", "0")) or None
 
 
 # Cơ sở dữ liệu

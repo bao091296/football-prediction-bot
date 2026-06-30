@@ -10,7 +10,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 import database as db
 import football_api as api
 from helpers import build_poll_question, build_poll_options, build_result_text, OPTION_INDEX_TO_CODE
-from config import POLL_CLOSE_MINUTES_BEFORE
+from config import POLL_CLOSE_MINUTES_BEFORE, CHAT_THREAD_ID
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +67,13 @@ async def job_create_polls():
 
             options = build_poll_options(match["home_team"], match["away_team"])
             msg = await _bot_app.bot.send_poll(
-                chat_id          = chat_id,
-                question         = question + ("\n⚠️ Poll tạo muộn - trận đang diễn ra!" if not use_close else ""),
-                options          = options,
-                is_anonymous     = False,
+                chat_id              = chat_id,
+                message_thread_id    = CHAT_THREAD_ID,
+                question             = question + ("\n⚠️ Poll tạo muộn - trận đang diễn ra!" if not use_close else ""),
+                options              = options,
+                is_anonymous         = False,
                 allows_multiple_answers = False,
-                close_date       = close_dt if use_close else None,
+                close_date           = close_dt if use_close else None,
             )
             await db.save_poll_info(
                 match_id       = match["match_id"],
@@ -138,9 +139,10 @@ async def job_sync_results():
 
             text = await build_result_message(match, summary)
             await _bot_app.bot.send_message(
-                chat_id    = chat_id,
-                text       = text,
-                parse_mode = "HTML",
+                chat_id           = chat_id,
+                message_thread_id = CHAT_THREAD_ID,
+                text              = text,
+                parse_mode        = "HTML",
             )
 
     except Exception as e:

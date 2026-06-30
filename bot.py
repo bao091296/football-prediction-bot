@@ -19,7 +19,7 @@ from helpers import (
     build_poll_question, build_poll_options, build_result_text,
     OPTION_INDEX_TO_CODE, PRED_CODE_TO_LABEL, name_display, format_match_time,
 )
-from config import TELEGRAM_BOT_TOKEN, ADMIN_IDS, POLL_CLOSE_MINUTES_BEFORE
+from config import TELEGRAM_BOT_TOKEN, ADMIN_IDS, POLL_CLOSE_MINUTES_BEFORE, CHAT_THREAD_ID
 import scheduler as sched
 
 logging.basicConfig(
@@ -229,7 +229,9 @@ async def cmd_tao_poll(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
     # Nếu thời gian đóng đã qua, không set close_date
     use_close = close_dt > datetime.now(timezone.utc)
-    msg = await update.message.reply_poll(
+    msg = await ctx.bot.send_poll(
+        chat_id                 = update.effective_chat.id,
+        message_thread_id       = CHAT_THREAD_ID,
         question                = question,
         options                 = build_poll_options(match["home_team"], match["away_team"]),
         is_anonymous            = False,
@@ -279,7 +281,7 @@ async def cmd_cap_nhat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     match["away_score"] = away_score
     text = build_result_text(match, summary)
     chat_id = match.get("chat_id") or update.effective_chat.id
-    await ctx.bot.send_message(chat_id=chat_id, text=text, parse_mode="HTML")
+    await ctx.bot.send_message(chat_id=chat_id, message_thread_id=CHAT_THREAD_ID, text=text, parse_mode="HTML")
     await update.message.reply_text("✅ Đã cập nhật kết quả và tính điểm.")
 
 
