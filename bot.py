@@ -602,12 +602,35 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logger.error("Lỗi bot: %s", context.error, exc_info=context.error)
 
 
+async def force_fix_points():
+    """Luôn set đúng điểm cho 8 người vote 29/06 khi bot khởi động."""
+    import aiosqlite
+    from config import DB_PATH
+    POINTS = {
+        8814280223: -20.0,   # Zane
+        1682575734: -20.0,   # Alie
+        822425008:  -20.0,   # Andy
+        5200492637: -20.0,   # Aron
+        5138244411: -20.0,   # Hercules
+        1800116341: -100.0,  # Bugi
+        1762927178: -100.0,  # Tommy
+        934622455:  -100.0,  # Vịt Tư Mã
+    }
+    try:
+        async with aiosqlite.connect(DB_PATH) as conn:
+            conn.row_factory = aiosqlite.Row
+            for uid, pts in POINTS.items():
+                result = await conn.execute("UPDATE users SET points=? WHERE user_id=?", (pts, uid))
+                logger.info(f"[fix] user {uid} → {pts}đ (rows affected: {result.rowcount})")
+            await conn.commit()
+        logger.info("[fix] ✅ force_fix_points xong.")
+    except Exception as e:
+        logger.error(f"[fix] Lỗi: {e}", exc_info=True)
+
+
 async def post_init(app: Application):
     await db.init_db()
-    try:
-        await seed_history()
-    except Exception as e:
-        logger.error(f"[seed] Lỗi seed_history: {e}", exc_info=True)
+    await force_fix_points()
     sched.start_scheduler(app)
     asyncio.create_task(sched.job_sync_upcoming_matches())
     asyncio.create_task(sched.job_create_polls())
