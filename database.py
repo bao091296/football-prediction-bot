@@ -266,36 +266,55 @@ async def settle_match(match_id: int, result: str, all_user_ids: list[int]) -> d
         no_pred_users = [uid for uid in all_user_ids if uid not in preds]
 
         total_losers = len(wrong_users) + len(no_pred_users)
-        total_deducted = total_losers * POINTS_DEDUCT
-        gain_per_winner = (total_deducted / len(correct_users)) if correct_users else 0
 
-        # Cập nhật điểm và đánh dấu dự đoán
-        for uid in correct_users:
-            await db.execute("""
-                UPDATE predictions SET is_correct = 1, points_delta = ?
-                WHERE user_id = ? AND match_id = ?
-            """, (gain_per_winner, uid, match_id))
-            await db.execute(
-                "UPDATE users SET points = points + ? WHERE user_id = ?",
-                (gain_per_winner, uid)
-            )
+        # Nếu tất cả đúng hoặc tất cả sai/không vote → không tính điểm
+        all_correct = total_losers == 0 and len(correct_users) > 0
+        all_wrong   = len(correct_users) == 0
+        no_change   = all_correct or all_wrong
 
-        for uid in wrong_users:
-            await db.execute("""
-                UPDATE predictions SET is_correct = 0, points_delta = ?
-                WHERE user_id = ? AND match_id = ?
-            """, (-POINTS_DEDUCT, uid, match_id))
-            await db.execute(
-                "UPDATE users SET points = points - ? WHERE user_id = ?",
-                (POINTS_DEDUCT, uid)
-            )
+        total_deducted  = 0 if no_change else total_losers * POINTS_DEDUCT
+        gain_per_winner = (total_deducted / len(correct_users)) if (correct_users and not no_change) else 0
 
-        # Người không đoán: trừ điểm nhưng KHÔNG insert prediction
-        for uid in no_pred_users:
-            await db.execute(
-                "UPDATE users SET points = points - ? WHERE user_id = ?",
-                (POINTS_DEDUCT, uid)
-            )
+        if not no_change:
+            # Cập nhật điểm và đánh dấu dự đoán
+            for uid in correct_users:
+                await db.execute("""
+                    UPDATE predictions SET is_correct = 1, points_delta = ?
+                    WHERE user_id = ? AND match_id = ?
+                """, (gain_per_winner, uid, match_id))
+                await db.execute(
+                    "UPDATE users SET points = points + ? WHERE user_id = ?",
+                    (gain_per_winner, uid)
+                )
+
+            for uid in wrong_users:
+                await db.execute("""
+                    UPDATE predictions SET is_correct = 0, points_delta = ?
+                    WHERE user_id = ? AND match_id = ?
+                """, (-POINTS_DEDUCT, uid, match_id))
+                await db.execute(
+                    "UPDATE users SET points = points - ? WHERE user_id = ?",
+                    (POINTS_DEDUCT, uid)
+                )
+
+            # Người không đoán: trừ điểm nhưng KHÔNG insert prediction
+            for uid in no_pred_users:
+                await db.execute(
+                    "UPDATE users SET points = points - ? WHERE user_id = ?",
+                    (POINTS_DEDUCT, uid)
+                )
+        else:
+            # Vẫn đánh dấu is_correct nhưng delta = 0
+            for uid in correct_users:
+                await db.execute("""
+                    UPDATE predictions SET is_correct = 1, points_delta = 0
+                    WHERE user_id = ? AND match_id = ?
+                """, (uid, match_id))
+            for uid in wrong_users:
+                await db.execute("""
+                    UPDATE predictions SET is_correct = 0, points_delta = 0
+                    WHERE user_id = ? AND match_id = ?
+                """, (uid, match_id))
 
         await db.commit()
 
@@ -305,6 +324,7 @@ async def settle_match(match_id: int, result: str, all_user_ids: list[int]) -> d
         "no_pred": no_pred_users,
         "gain_per_winner": gain_per_winner,
         "total_deducted": total_deducted,
+        "no_change": no_change,
     }
 
 

@@ -196,40 +196,51 @@ async def build_result_message(match: dict, summary: dict) -> str:
         "",
     ]
 
-    gain = summary["gain_per_winner"]
+    gain        = summary["gain_per_winner"]
     correct_ids = summary["correct"]
     wrong_ids   = summary["wrong"]
     no_pred_ids = summary["no_pred"]
+    no_change   = summary.get("no_change", False)
 
     # Lấy tên người dùng
     all_ids = correct_ids + wrong_ids + no_pred_ids
     users = await db.get_users_by_ids(all_ids)
 
+    if no_change:
+        if correct_ids:
+            lines.append("🤝 <b>Tất cả đoán đúng — không tính điểm lần này!</b>")
+        else:
+            lines.append("🤝 <b>Không ai đoán đúng — không tính điểm lần này!</b>")
+
     if correct_ids:
-        lines.append(f"✅ <b>Đoán đúng ({len(correct_ids)} người) +{gain:.1f}đ mỗi người:</b>")
+        label = f"+{gain:.1f}đ mỗi người" if not no_change else "±0đ"
+        lines.append(f"✅ <b>Đoán đúng ({len(correct_ids)} người) {label}:</b>")
         for uid in correct_ids:
             u = users.get(uid, {"full_name": f"#{uid}", "username": ""})
             lines.append(f"  • {name_display(u)}")
-    else:
+    elif not no_change:
         lines.append("✅ Không ai đoán đúng cả!")
 
     lines.append("")
 
     if wrong_ids:
-        lines.append(f"❌ <b>Đoán sai ({len(wrong_ids)} người) -50đ mỗi người:</b>")
+        deduct_label = "±0đ" if no_change else "-50đ mỗi người"
+        lines.append(f"❌ <b>Đoán sai ({len(wrong_ids)} người) {deduct_label}:</b>")
         for uid in wrong_ids:
             u = users.get(uid, {"full_name": f"#{uid}", "username": ""})
             lines.append(f"  • {name_display(u)}")
         lines.append("")
 
     if no_pred_ids:
-        lines.append(f"⏭️ <b>Không tham gia ({len(no_pred_ids)} người) -50đ mỗi người:</b>")
+        deduct_label = "±0đ" if no_change else "-50đ mỗi người"
+        lines.append(f"⏭️ <b>Không tham gia ({len(no_pred_ids)} người) {deduct_label}:</b>")
         for uid in no_pred_ids:
             u = users.get(uid, {"full_name": f"#{uid}", "username": ""})
             lines.append(f"  • {name_display(u)}")
         lines.append("")
 
-    lines.append(f"💰 Tổng điểm phạt: <b>{summary['total_deducted']:.0f}đ</b>")
+    if not no_change:
+        lines.append(f"💰 Tổng điểm phạt: <b>{summary['total_deducted']:.0f}đ</b>")
 
     # Bảng xếp hạng toàn bộ
     board = await db.get_leaderboard(50)
