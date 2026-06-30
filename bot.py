@@ -413,9 +413,9 @@ async def cmd_seed_2906(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         async with conn.execute("SELECT full_name, points FROM users ORDER BY points DESC") as cur:
             medals = ["🥇","🥈","🥉"]
             for i, row in enumerate(await cur.fetchall(), 1):
-                medal = medals[i-1] if i <= 3 else f"{i}."
-                sign  = "+" if row["points"] >= 0 else ""
-                lines.append(f"  {medal} {row['full_name']}: {sign}{row['points']:.1f}đ")
+                rank = medals[i-1] if i <= 3 else f"{i}."
+                sign = "+" if row["points"] >= 0 else ""
+                lines.append(f"  {rank} {row['full_name']}: {sign}{row['points']:.1f}đ")
 
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 

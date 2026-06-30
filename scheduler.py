@@ -218,16 +218,17 @@ async def build_result_message(match: dict, summary: dict) -> str:
 
     lines.append(f"💰 Tổng điểm phạt: <b>{summary['total_deducted']:.0f}đ</b>")
 
-    # Top 5 bảng xếp hạng hiện tại
-    board = await db.get_leaderboard(5)
+    # Bảng xếp hạng toàn bộ
+    board = await db.get_leaderboard(50)
     if board:
         lines.append("")
-        lines.append("🏆 <b>Top 5 hiện tại:</b>")
-        medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+        lines.append("🏆 <b>Bảng xếp hạng:</b>")
+        medals = ["🥇", "🥈", "🥉"]
         for i, u in enumerate(board):
+            rank = medals[i] if i < 3 else f"{i+1}."
             pts  = u["points"]
             sign = "+" if pts >= 0 else ""
-            lines.append(f"  {medals[i]} {name_display(u)}: {sign}{pts:.1f}đ")
+            lines.append(f"  {rank} {name_display(u)}: {sign}{pts:.1f}đ")
 
     return "\n".join(lines)
 
