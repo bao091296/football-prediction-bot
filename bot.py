@@ -604,27 +604,34 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 
 async def force_fix_points():
     """Luôn set đúng điểm cho 8 người vote 29/06 khi bot khởi động."""
-    import aiosqlite
+    import sys, aiosqlite
     from config import DB_PATH
-    POINTS = {
-        8814280223: -20.0,   # Zane
-        1682575734: -20.0,   # Alie
-        822425008:  -20.0,   # Andy
-        5200492637: -20.0,   # Aron
-        5138244411: -20.0,   # Hercules
-        1800116341: -100.0,  # Bugi
-        1762927178: -100.0,  # Tommy
-        934622455:  -100.0,  # Vịt Tư Mã
-    }
+    VOTERS = [
+        (8814280223, "Zane1602",    "Zane",          -20.0),
+        (1682575734, "alieforreal", "Alie",           -20.0),
+        (822425008,  "Andy_cc",     "Andy",           -20.0),
+        (5200492637, "Aron713",     "Aron",           -20.0),
+        (5138244411, "qle23",       "Hercules 🐾",    -20.0),
+        (1800116341, "bugicoincu",  "Bugi | Coincu", -100.0),
+        (1762927178, "TommyH0",     "Tommy 🐾",      -100.0),
+        (934622455,  "pevitsocute", "Vịt Tư Mã",    -100.0),
+    ]
+    print("[fix] force_fix_points bắt đầu chạy...", flush=True)
     try:
         async with aiosqlite.connect(DB_PATH) as conn:
             conn.row_factory = aiosqlite.Row
-            for uid, pts in POINTS.items():
-                result = await conn.execute("UPDATE users SET points=? WHERE user_id=?", (pts, uid))
-                logger.info(f"[fix] user {uid} → {pts}đ (rows affected: {result.rowcount})")
+            for uid, uname, fname, pts in VOTERS:
+                await conn.execute(
+                    "INSERT INTO users (user_id, username, full_name, points) VALUES (?,?,?,?) "
+                    "ON CONFLICT(user_id) DO UPDATE SET points=excluded.points",
+                    (uid, uname, fname, pts)
+                )
+                print(f"[fix] user {uid} ({fname}) → {pts}đ", flush=True)
             await conn.commit()
-        logger.info("[fix] ✅ force_fix_points xong.")
+        print("[fix] ✅ force_fix_points xong.", flush=True)
+        logger.info("[fix] ✅ force_fix_points đã set điểm cho 8 voters.")
     except Exception as e:
+        print(f"[fix] LỖI: {e}", flush=True)
         logger.error(f"[fix] Lỗi: {e}", exc_info=True)
 
 
