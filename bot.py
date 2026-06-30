@@ -320,8 +320,8 @@ async def cmd_seed_2906(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         },
         {
             "ext_id": "553124", "home_team": "Germany", "away_team": "Paraguay",
-            "match_time": "2026-06-29T20:30:00Z", "result": "AWAY_WIN",
-            "home_score": 4, "away_score": 5,
+            "match_time": "2026-06-29T20:30:00Z", "result": "DRAW",
+            "home_score": 1, "away_score": 1,  # tỉ số 90 phút chính thức
             "preds": {-6:"HOME_WIN",-7:"HOME_WIN",-2:"HOME_WIN",-3:"HOME_WIN",
                       -4:"HOME_WIN",-8:"HOME_WIN",-5:"HOME_WIN",-1:"AWAY_WIN"},
         },
