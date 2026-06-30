@@ -312,23 +312,8 @@ async def cmd_users(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
-async def cmd_reset_fake(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Xoá toàn bộ fake user (ID âm) và reset điểm real user về 0."""
-    if not is_admin(update.effective_user.id):
-        return
-    import aiosqlite
-    from config import DB_PATH
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("DELETE FROM predictions WHERE user_id < 0")
-        await db.execute("DELETE FROM users WHERE user_id < 0")
-        await db.execute("UPDATE users SET points = 0 WHERE user_id > 0")
-        await db.execute("UPDATE matches SET status = 'SCHEDULED' WHERE ext_id IN ('553123','553124')")
-        await db.commit()
-    await update.message.reply_text("✅ Done /reset_fake.")
-
-
 async def cmd_full_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Xoá TOÀN BỘ predictions + users, reset matches 29/06 để seed lại sạch."""
+    """Xoá TOÀN BỘ predictions + users để bot tự seed lại khi restart."""
     if not is_admin(update.effective_user.id):
         return
     import aiosqlite
@@ -341,16 +326,13 @@ async def cmd_full_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "WHERE ext_id IN ('553123','553124')"
         )
         await conn.commit()
-    await update.message.reply_text(
-        "✅ Đã xoá sạch toàn bộ predictions + users.\n"
-        "Nhờ tất cả 11 người gõ /start lại, sau đó chạy /seed_2906."
-    )
+    await update.message.reply_text("✅ Đã xoá sạch. Bot sẽ tự seed lại dữ liệu 29/06 sau khi restart.")
 
 
-async def cmd_seed_2906(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Seed dữ liệu lịch sử 2 trận 29/06. Chỉ dùng 1 lần."""
-    if not is_admin(update.effective_user.id):
-        return
+async def seed_history():
+    """Tự động seed dữ liệu lịch sử 2 trận 29/06 nếu chưa có."""
+    import aiosqlite
+    from config import DB_PATH, POINTS_DEDUCT
 
     USERS = [
         (8814280223, "Zane1602",    "Zane"),
@@ -373,67 +355,62 @@ async def cmd_seed_2906(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         {
             "ext_id": "553124", "home_team": "Germany", "away_team": "Paraguay",
             "match_time": "2026-06-29T20:30:00Z", "result": "DRAW",
-            "home_score": 1, "away_score": 1,  # tỉ số 90 phút chính thức
+            "home_score": 1, "away_score": 1,
             "preds": {1800116341:"HOME_WIN",1762927178:"HOME_WIN",1682575734:"HOME_WIN",822425008:"HOME_WIN",
                       5200492637:"HOME_WIN",934622455:"HOME_WIN",5138244411:"HOME_WIN",8814280223:"AWAY_WIN"},
         },
     ]
 
-    import aiosqlite
-    from config import DB_PATH, POINTS_DEDUCT
-
     async with aiosqlite.connect(DB_PATH) as conn:
         conn.row_factory = aiosqlite.Row
+
+        # Kiểm tra đã seed chưa
+        async with conn.execute(
+            "SELECT COUNT(*) as c FROM predictions p "
+            "JOIN matches m ON p.match_id = m.match_id "
+            "WHERE m.ext_id IN ('553123','553124')"
+        ) as cur:
+            row = await cur.fetchone()
+            if row["c"] > 0:
+                return  # Đã có dữ liệu, bỏ qua
+
+        logger.info("[seed] Chưa có dữ liệu lịch sử 29/06, tự seed...")
+
         for uid, username, full_name in USERS:
             await conn.execute(
                 "INSERT OR IGNORE INTO users (user_id, username, full_name, points) VALUES (?,?,?,0)",
                 (uid, username, full_name)
             )
 
-        lines = ["✅ <b>Seed dữ liệu 29/06 xong:</b>\n"]
         for m in MATCHES:
             await conn.execute("""
-                INSERT INTO matches (ext_id,home_team,away_team,competition,match_time,status,result,home_score,away_score,chat_id)
-                VALUES (?,?,?,'WC',?,'FINISHED',?,?,?,?)
+                INSERT INTO matches (ext_id,home_team,away_team,competition,match_time,status,result,home_score,away_score)
+                VALUES (?,?,?,'WC',?,'FINISHED',?,?,?)
                 ON CONFLICT(ext_id) DO UPDATE SET status='FINISHED',result=excluded.result,
                 home_score=excluded.home_score,away_score=excluded.away_score
             """, (m["ext_id"],m["home_team"],m["away_team"],m["match_time"],
-                  m["result"],m["home_score"],m["away_score"],update.effective_chat.id))
+                  m["result"],m["home_score"],m["away_score"]))
 
             async with conn.execute("SELECT match_id FROM matches WHERE ext_id=?", (m["ext_id"],)) as cur:
                 match_id = (await cur.fetchone())[0]
 
             result  = m["result"]
             preds   = m["preds"]
-            correct = [uid for uid,p in preds.items() if p == result]
-            wrong   = [uid for uid,p in preds.items() if p != result]
+            correct = [uid for uid, p in preds.items() if p == result]
+            wrong   = [uid for uid, p in preds.items() if p != result]
             gain    = (len(wrong) * POINTS_DEDUCT / len(correct)) if correct else 0
 
             for uid, pred in preds.items():
                 is_c  = 1 if pred == result else 0
                 delta = gain if is_c else -POINTS_DEDUCT
                 await conn.execute("""
-                    INSERT INTO predictions (user_id,match_id,prediction,is_correct,points_delta)
+                    INSERT OR IGNORE INTO predictions (user_id,match_id,prediction,is_correct,points_delta)
                     VALUES (?,?,?,?,?)
-                    ON CONFLICT(user_id,match_id) DO UPDATE SET
-                        prediction=excluded.prediction,is_correct=excluded.is_correct,points_delta=excluded.points_delta
                 """, (uid, match_id, pred, is_c, delta))
                 await conn.execute("UPDATE users SET points=points+? WHERE user_id=?", (delta, uid))
 
-            lines.append(f"⚽ {m['home_team']} {m['home_score']}-{m['away_score']} {m['away_team']}")
-            lines.append(f"  ✅ Đúng {len(correct)} người (+{gain:.1f}đ) | ❌ Sai {len(wrong)} người (-50đ)\n")
-
         await conn.commit()
-
-        lines.append("🏆 <b>Bảng xếp hạng:</b>")
-        async with conn.execute("SELECT full_name, points FROM users ORDER BY points DESC") as cur:
-            medals = ["🥇","🥈","🥉"]
-            for i, row in enumerate(await cur.fetchall(), 1):
-                rank = medals[i-1] if i <= 3 else f"{i}."
-                sign = "+" if row["points"] >= 0 else ""
-                lines.append(f"  {rank} {row['full_name']}: {sign}{row['points']:.1f}đ")
-
-    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+        logger.info("[seed] Đã seed xong dữ liệu lịch sử 29/06.")
 
 
 async def cmd_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -495,8 +472,8 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app: Application):
     await db.init_db()
+    await seed_history()
     sched.start_scheduler(app)
-    # Chạy sync + tạo poll ngay khi khởi động
     asyncio.create_task(sched.job_sync_upcoming_matches())
     asyncio.create_task(sched.job_create_polls())
 
@@ -533,9 +510,7 @@ def main():
     app.add_handler(CommandHandler("cap_nhat",   cmd_cap_nhat))
     app.add_handler(CommandHandler("dong_bo",    cmd_dong_bo))
     app.add_handler(CommandHandler("sync",       cmd_sync))
-    app.add_handler(CommandHandler("seed_2906",  cmd_seed_2906))
     app.add_handler(CommandHandler("users",      cmd_users))
-    app.add_handler(CommandHandler("reset_fake", cmd_reset_fake))
     app.add_handler(CommandHandler("full_reset", cmd_full_reset))
     app.add_handler(CommandHandler("admin",      cmd_admin_help))
 
