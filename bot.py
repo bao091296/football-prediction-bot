@@ -668,32 +668,6 @@ async def cmd_reset_tran(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
 
 
-async def cmd_push_bxh(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Admin đẩy BXH vào group topic."""
-    if not is_admin(update.effective_user.id):
-        return
-    board = await db.get_leaderboard(50)
-    if not board:
-        await update.message.reply_text("Chưa có dữ liệu.")
-        return
-    lines = ["🏆 <b>Bảng xếp hạng hiện tại</b>\n"]
-    medals = ["🥇", "🥈", "🥉"]
-    for i, u in enumerate(board):
-        rank = medals[i] if i < 3 else f"{i+1}."
-        pts  = u["points"]
-        sign = "+" if pts >= 0 else ""
-        lines.append(f"{rank} {name_display(u)}: <b>{sign}{pts:.1f}</b> điểm")
-    groups = await db.get_all_groups()
-    if groups:
-        await ctx.bot.send_message(
-            chat_id           = groups[0],
-            message_thread_id = CHAT_THREAD_ID,
-            text              = "\n".join(lines),
-            parse_mode        = "HTML",
-        )
-    await update.message.reply_text("✅ Đã gửi BXH vào nhóm.")
-
-
 async def cmd_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Admin trigger đồng bộ kết quả + tính điểm ngay lập tức."""
     if not is_admin(update.effective_user.id):
@@ -825,7 +799,6 @@ def main():
     app.add_handler(CommandHandler("sync",       cmd_sync))
     app.add_handler(CommandHandler("reset_tran",  cmd_reset_tran))
     app.add_handler(CommandHandler("recalc_all",  cmd_recalc_all))
-    app.add_handler(CommandHandler("push_bxh",    cmd_push_bxh))
     app.add_handler(CommandHandler("matches",    cmd_matches))
     app.add_handler(CommandHandler("fix_points", cmd_fix_points))
     app.add_handler(CommandHandler("users",      cmd_users))
