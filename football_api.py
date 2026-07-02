@@ -35,7 +35,10 @@ async def fetch_upcoming_matches(days_ahead: int = 2) -> list[dict]:
                         continue
                     data = await resp.json()
                     for m in data.get("matches", []):
-                        results.append(_parse_match(m, comp))
+                        parsed = _parse_match(m, comp)
+                        # Bỏ qua trận chưa có tên đội (TBD)
+                        if parsed["home_team"] and parsed["away_team"]:
+                            results.append(parsed)
             except Exception:
                 continue
     return results
@@ -64,7 +67,9 @@ async def fetch_finished_matches(days_back: int = 1) -> list[dict]:
                         continue
                     data = await resp.json()
                     for m in data.get("matches", []):
-                        results.append(_parse_match(m, comp))
+                        parsed = _parse_match(m, comp)
+                        if parsed["home_team"] and parsed["away_team"]:
+                            results.append(parsed)
             except Exception:
                 continue
     return results

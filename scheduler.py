@@ -259,8 +259,8 @@ async def build_result_message(match: dict, summary: dict) -> str:
 
 def start_scheduler(app):
     set_application(app)
-    # Đồng bộ lịch mỗi 6 tiếng
-    scheduler.add_job(job_sync_upcoming_matches, IntervalTrigger(hours=6), id="sync_matches")
+    # Đồng bộ lịch mỗi 30 phút để kịp bắt thay đổi lịch
+    scheduler.add_job(job_sync_upcoming_matches, IntervalTrigger(minutes=30), id="sync_matches")
     # Kiểm tra poll cần tạo mỗi 15 phút
     scheduler.add_job(job_create_polls, IntervalTrigger(minutes=15), id="create_polls")
     # Kiểm tra kết quả mỗi 30 phút
