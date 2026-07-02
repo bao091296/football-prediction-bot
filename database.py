@@ -371,6 +371,36 @@ async def get_users_by_ids(user_ids: list[int]) -> dict[int, dict]:
             return {r["user_id"]: dict(r) for r in await cur.fetchall()}
 
 
+async def unsettle_match(match_id: int):
+    """Hoàn tác việc tính điểm: trả lại điểm cũ, reset is_correct về NULL."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        # Lấy tất cả predictions đã được tính (is_correct IS NOT NULL)
+        async with db.execute(
+            "SELECT user_id, points_delta FROM predictions WHERE match_id=? AND is_correct IS NOT NULL",
+            (match_id,)
+        ) as cur:
+            settled = await cur.fetchall()
+        # Hoàn trả điểm
+        for row in settled:
+            await db.execute(
+                "UPDATE users SET points = points - ? WHERE user_id = ?",
+                (row["points_delta"], row["user_id"])
+            )
+        # Cũng hoàn trả điểm của người không dự đoán (không có prediction row)
+        # → không thể hoàn trả vì không lưu, nên chỉ reset prediction rows
+        await db.execute(
+            "UPDATE predictions SET is_correct=NULL, points_delta=NULL WHERE match_id=?",
+            (match_id,)
+        )
+        # Reset match về SCHEDULED để có thể settle lại
+        await db.execute(
+            "UPDATE matches SET status='SCHEDULED', result=NULL, home_score=NULL, away_score=NULL WHERE match_id=?",
+            (match_id,)
+        )
+        await db.commit()
+
+
 async def is_match_settled(match_id: int) -> bool:
     """Trả về True nếu trận đã được tính điểm (tất cả prediction đã có is_correct)."""
     async with aiosqlite.connect(DB_PATH) as db:

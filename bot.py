@@ -270,6 +270,11 @@ async def cmd_cap_nhat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Không tìm thấy trận.")
         return
 
+    # Nếu đã tính điểm rồi → hoàn tác trước
+    if await db.is_match_settled(match_id):
+        await db.unsettle_match(match_id)
+        logger.info(f"[cap_nhat] Đã unsettle trận {match_id} để tính lại.")
+
     await db.update_match_result(match_id, result, home_score, away_score)
 
     all_users = await db.get_all_active_users()

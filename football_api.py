@@ -71,13 +71,20 @@ async def fetch_finished_matches(days_back: int = 1) -> list[dict]:
 
 
 def _parse_match(m: dict, competition: str) -> dict:
-    score = m.get("score", {})
+    score    = m.get("score", {})
+    duration = score.get("duration", "REGULAR")  # REGULAR | EXTRA_TIME | PENALTY_SHOOTOUT
 
-    # Ưu tiên regularTime (đúng 90 phút), fallback về fullTime
     reg  = score.get("regularTime", {}) or {}
     full = score.get("fullTime", {}) or {}
-    home_score = reg.get("home") if reg.get("home") is not None else full.get("home")
-    away_score = reg.get("away") if reg.get("away") is not None else full.get("away")
+
+    if duration in ("EXTRA_TIME", "PENALTY_SHOOTOUT"):
+        # fullTime của API = kết quả SAU hiệp phụ/penalty → phải dùng regularTime (90 phút)
+        home_score = reg.get("home")
+        away_score = reg.get("away")
+    else:
+        # Trận kết thúc trong 90 phút → fullTime chính là 90 phút
+        home_score = full.get("home")
+        away_score = full.get("away")
 
     # Tính kết quả chỉ theo 90 phút → giữ "Hòa" cho knockout
     outcome = None
