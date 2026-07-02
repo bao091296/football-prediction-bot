@@ -138,7 +138,7 @@ async def cmd_trandau(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         time_str = format_match_time(m["match_time"])
         poll_status = "✅ Đã tạo poll" if m["poll_message_id"] else "⏳ Chưa có poll"
         comp = f"[{m['competition']}] " if m["competition"] else ""
-        lines.append(f"⚽ {comp}{m['home_team']} vs {m['away_team']}\n"
+        lines.append(f"⚽ <code>#{m['match_id']}</code> {comp}{m['home_team']} vs {m['away_team']}\n"
                      f"   🕐 {time_str} | {poll_status}")
 
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
@@ -550,6 +550,24 @@ async def cmd_fix_points(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
+async def cmd_matches(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Admin xem toàn bộ trận + match_id."""
+    if not is_admin(update.effective_user.id):
+        return
+    import aiosqlite
+    from config import DB_PATH
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+        async with conn.execute("SELECT match_id, home_team, away_team, status, result, home_score, away_score FROM matches ORDER BY match_id") as cur:
+            rows = [dict(r) for r in await cur.fetchall()]
+    lines = ["🗂 <b>Tất cả trận:</b>\n"]
+    for r in rows:
+        score = f" {r['home_score']}-{r['away_score']}" if r['home_score'] is not None else ""
+        res   = f" ({r['result']})" if r['result'] else ""
+        lines.append(f"<code>#{r['match_id']}</code> {r['home_team']} vs {r['away_team']} — {r['status']}{score}{res}")
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
 async def cmd_reset_tran(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Admin reset trận về SCHEDULED để tính lại (dùng khi /cap_nhat nhầm)."""
     if not is_admin(update.effective_user.id):
@@ -700,6 +718,7 @@ def main():
     app.add_handler(CommandHandler("dong_bo",    cmd_dong_bo))
     app.add_handler(CommandHandler("sync",       cmd_sync))
     app.add_handler(CommandHandler("reset_tran", cmd_reset_tran))
+    app.add_handler(CommandHandler("matches",    cmd_matches))
     app.add_handler(CommandHandler("fix_points", cmd_fix_points))
     app.add_handler(CommandHandler("users",      cmd_users))
     app.add_handler(CommandHandler("full_reset", cmd_full_reset))
