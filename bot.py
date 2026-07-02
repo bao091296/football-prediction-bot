@@ -550,6 +550,24 @@ async def cmd_fix_points(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
+async def cmd_reset_tran(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Admin reset trận về SCHEDULED để tính lại (dùng khi /cap_nhat nhầm)."""
+    if not is_admin(update.effective_user.id):
+        return
+    if not ctx.args:
+        await update.message.reply_text("Cú pháp: /reset_tran <match_id>")
+        return
+    match_id = int(ctx.args[0])
+    match = await db.get_match(match_id)
+    if not match:
+        await update.message.reply_text("Không tìm thấy trận.")
+        return
+    await db.unsettle_match(match_id)
+    await update.message.reply_text(
+        f"✅ Đã reset trận #{match_id} ({match['home_team']} vs {match['away_team']}) về SCHEDULED."
+    )
+
+
 async def cmd_sync(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Admin trigger đồng bộ kết quả + tính điểm ngay lập tức."""
     if not is_admin(update.effective_user.id):
@@ -681,6 +699,7 @@ def main():
     app.add_handler(CommandHandler("cap_nhat",   cmd_cap_nhat))
     app.add_handler(CommandHandler("dong_bo",    cmd_dong_bo))
     app.add_handler(CommandHandler("sync",       cmd_sync))
+    app.add_handler(CommandHandler("reset_tran", cmd_reset_tran))
     app.add_handler(CommandHandler("fix_points", cmd_fix_points))
     app.add_handler(CommandHandler("users",      cmd_users))
     app.add_handler(CommandHandler("full_reset", cmd_full_reset))
