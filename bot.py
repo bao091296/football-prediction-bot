@@ -550,6 +550,88 @@ async def cmd_fix_points(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
+async def cmd_recalc_all(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Reset điểm toàn bộ user về 0, tính lại từ tất cả trận FINISHED."""
+    if not is_admin(update.effective_user.id):
+        return
+    import aiosqlite
+    from config import DB_PATH, POINTS_DEDUCT
+
+    await update.message.reply_text("⏳ Đang tính lại toàn bộ điểm...")
+
+    async with aiosqlite.connect(DB_PATH) as conn:
+        conn.row_factory = aiosqlite.Row
+
+        # Reset tất cả điểm về 0
+        await conn.execute("UPDATE users SET points = 0")
+        # Reset tất cả predictions về chưa tính
+        await conn.execute("UPDATE predictions SET is_correct = NULL, points_delta = NULL")
+        await conn.commit()
+
+        # Lấy tất cả trận FINISHED có result, theo thứ tự thời gian
+        async with conn.execute("""
+            SELECT match_id, result FROM matches
+            WHERE status = 'FINISHED' AND result IS NOT NULL
+            ORDER BY match_time ASC
+        """) as cur:
+            finished = await cur.fetchall()
+
+        # Lấy tất cả user_ids
+        async with conn.execute("SELECT user_id FROM users") as cur:
+            all_user_ids = [r["user_id"] for r in await cur.fetchall()]
+
+        lines = [f"🔄 <b>Tính lại điểm ({len(finished)} trận):</b>\n"]
+
+        for m in finished:
+            match_id = m["match_id"]
+            result   = m["result"]
+
+            # Lấy predictions của trận này
+            async with conn.execute(
+                "SELECT user_id, prediction FROM predictions WHERE match_id = ?", (match_id,)
+            ) as cur:
+                preds = {r["user_id"]: r["prediction"] for r in await cur.fetchall()}
+
+            correct   = [uid for uid, p in preds.items() if p == result]
+            wrong     = [uid for uid, p in preds.items() if p != result]
+            no_pred   = [uid for uid in all_user_ids if uid not in preds]
+            total_losers = len(wrong) + len(no_pred)
+            no_change = not correct or not wrong
+
+            gain  = (total_losers * POINTS_DEDUCT / len(correct)) if (correct and not no_change) else 0
+            deduct = 0 if no_change else POINTS_DEDUCT
+
+            for uid in correct:
+                delta = gain if not no_change else 0
+                await conn.execute("UPDATE predictions SET is_correct=1, points_delta=? WHERE user_id=? AND match_id=?", (delta, uid, match_id))
+                if delta:
+                    await conn.execute("UPDATE users SET points=points+? WHERE user_id=?", (delta, uid))
+            for uid in wrong:
+                delta = -deduct
+                await conn.execute("UPDATE predictions SET is_correct=0, points_delta=? WHERE user_id=? AND match_id=?", (delta, uid, match_id))
+                if deduct:
+                    await conn.execute("UPDATE users SET points=points-? WHERE user_id=?", (deduct, uid))
+            for uid in no_pred:
+                if deduct:
+                    await conn.execute("UPDATE users SET points=points-? WHERE user_id=?", (deduct, uid))
+
+            note = " (không tính điểm)" if no_change else f" +{gain:.1f}đ/{len(correct)} đúng, -{deduct}đ/{total_losers} sai"
+            lines.append(f"• Trận #{match_id}: {result}{note}")
+
+        await conn.commit()
+
+        # Bảng xếp hạng mới
+        async with conn.execute("SELECT full_name, points FROM users ORDER BY points DESC") as cur:
+            board = await cur.fetchall()
+
+        lines.append("\n🏆 <b>BXH mới:</b>")
+        for i, u in enumerate(board, 1):
+            sign = "+" if u["points"] >= 0 else ""
+            lines.append(f"  {i}. {u['full_name']}: {sign}{u['points']:.1f}đ")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
+
+
 async def cmd_matches(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Admin xem toàn bộ trận + match_id."""
     if not is_admin(update.effective_user.id):
@@ -678,8 +760,6 @@ async def force_fix_points():
 async def post_init(app: Application):
     logger.info("[post_init] >>> bắt đầu")
     await db.init_db()
-    logger.info("[post_init] init_db xong, bắt đầu force_fix_points")
-    await force_fix_points()
     sched.start_scheduler(app)
     asyncio.create_task(sched.job_sync_upcoming_matches())
     asyncio.create_task(sched.job_create_polls())
@@ -717,7 +797,8 @@ def main():
     app.add_handler(CommandHandler("cap_nhat",   cmd_cap_nhat))
     app.add_handler(CommandHandler("dong_bo",    cmd_dong_bo))
     app.add_handler(CommandHandler("sync",       cmd_sync))
-    app.add_handler(CommandHandler("reset_tran", cmd_reset_tran))
+    app.add_handler(CommandHandler("reset_tran",  cmd_reset_tran))
+    app.add_handler(CommandHandler("recalc_all",  cmd_recalc_all))
     app.add_handler(CommandHandler("matches",    cmd_matches))
     app.add_handler(CommandHandler("fix_points", cmd_fix_points))
     app.add_handler(CommandHandler("users",      cmd_users))
