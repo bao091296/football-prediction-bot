@@ -106,8 +106,9 @@ def _parse_match(m: dict, competition: str) -> dict:
         "home_team":  m["homeTeam"]["name"],
         "away_team":  m["awayTeam"]["name"],
         "competition": competition,
-        "match_time": m["utcDate"],   # ISO8601 UTC
+        "match_time": m["utcDate"],
         "status":     m["status"],
+        "stage":      m.get("stage", "GROUP_STAGE"),
         "result":     outcome,
         "home_score": home_score,
         "away_score": away_score,

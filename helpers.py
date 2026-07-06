@@ -29,10 +29,19 @@ def format_match_time(utc_str: str) -> str:
     return local.strftime("%d/%m/%Y %H:%M")
 
 
-def build_poll_question(home: str, away: str, competition: str, match_time: str) -> str:
-    time_str = format_match_time(match_time)
-    comp_str = f"[{competition}] " if competition else ""
-    return f"⚽ {comp_str}{home} vs {away}\n🕐 {time_str} (VN)"
+STAGE_LABEL = {
+    "QUARTER_FINALS": "Tứ kết 🔥 ±100đ",
+    "SEMI_FINALS":    "Bán kết 💥 ±150đ",
+    "THIRD_PLACE":    "Hạng ba 💥 ±150đ",
+    "FINAL":          "Chung kết 🏆 ±300đ",
+}
+
+def build_poll_question(home: str, away: str, competition: str, match_time: str, stage: str = "GROUP_STAGE") -> str:
+    time_str  = format_match_time(match_time)
+    comp_str  = f"[{competition}] " if competition else ""
+    stage_str = STAGE_LABEL.get(stage, "")
+    suffix    = f"\n🎯 {stage_str}" if stage_str else ""
+    return f"⚽ {comp_str}{home} vs {away}\n🕐 {time_str} (VN){suffix}"
 
 
 def build_result_text(match: dict, summary: dict) -> str:

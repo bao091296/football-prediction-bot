@@ -39,6 +39,7 @@ async def job_sync_upcoming_matches():
                 competition = m["competition"],
                 ext_id      = m["ext_id"],
                 chat_id     = default_chat,
+                stage       = m.get("stage", "GROUP_STAGE"),
             )
         logger.info(f"[scheduler] Đồng bộ xong {len(matches)} trận.")
     except Exception as e:
@@ -58,7 +59,8 @@ async def job_create_polls():
                 continue
             question = build_poll_question(
                 match["home_team"], match["away_team"],
-                match["competition"], match["match_time"]
+                match["competition"], match["match_time"],
+                match.get("stage", "GROUP_STAGE"),
             )
             match_dt = datetime.fromisoformat(match["match_time"].replace("Z", "+00:00"))
             close_dt = match_dt - timedelta(minutes=POLL_CLOSE_MINUTES_BEFORE)
@@ -121,6 +123,7 @@ async def job_sync_results():
                 competition = m["competition"],
                 ext_id      = m["ext_id"],
                 chat_id     = default_chat,
+                stage       = m.get("stage", "GROUP_STAGE"),
             )
             match = await db.get_match_by_ext_id(m["ext_id"])
             if not match:

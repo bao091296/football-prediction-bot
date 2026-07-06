@@ -3,6 +3,19 @@ import asyncio
 from datetime import datetime
 from config import DB_PATH, POINTS_DEDUCT
 
+STAGE_DEDUCT = {
+    "GROUP_STAGE":   50,
+    "ROUND_OF_16":   50,
+    "QUARTER_FINALS": 100,
+    "SEMI_FINALS":   150,
+    "THIRD_PLACE":   150,
+    "FINAL":         300,
+}
+
+def get_deduct(stage: str) -> int:
+    return STAGE_DEDUCT.get(stage or "GROUP_STAGE", 50)
+
+
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript("""
@@ -28,6 +41,7 @@ async def init_db():
                 poll_message_id INTEGER,
                 chat_id         INTEGER,
                 poll_id         TEXT,
+                stage           TEXT DEFAULT 'GROUP_STAGE',
                 created_at      TEXT DEFAULT (datetime('now'))
             );
 
@@ -49,6 +63,12 @@ async def init_db():
                 registered_at       TEXT DEFAULT (datetime('now'))
             );
         """)
+        # Migration: thêm cột stage nếu chưa có
+        try:
+            await db.execute("ALTER TABLE matches ADD COLUMN stage TEXT DEFAULT 'GROUP_STAGE'")
+            await db.commit()
+        except Exception:
+            pass  # Cột đã tồn tại
         await db.commit()
 
 
@@ -95,24 +115,26 @@ async def upsert_match(
     competition: str = "",
     ext_id: str | None = None,
     chat_id: int | None = None,
+    stage: str = "GROUP_STAGE",
 ) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
         if ext_id:
             await db.execute("""
-                INSERT INTO matches (ext_id, home_team, away_team, competition, match_time, chat_id)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO matches (ext_id, home_team, away_team, competition, match_time, chat_id, stage)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(ext_id) DO UPDATE SET
                     home_team   = excluded.home_team,
                     away_team   = excluded.away_team,
                     competition = excluded.competition,
                     match_time  = excluded.match_time,
+                    stage       = excluded.stage,
                     chat_id     = COALESCE(matches.chat_id, excluded.chat_id)
-            """, (ext_id, home_team, away_team, competition, match_time, chat_id))
+            """, (ext_id, home_team, away_team, competition, match_time, chat_id, stage))
         else:
             await db.execute("""
-                INSERT INTO matches (home_team, away_team, competition, match_time, chat_id)
-                VALUES (?, ?, ?, ?, ?)
-            """, (home_team, away_team, competition, match_time, chat_id))
+                INSERT INTO matches (home_team, away_team, competition, match_time, chat_id, stage)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (home_team, away_team, competition, match_time, chat_id, stage))
         await db.commit()
 
         if ext_id:
@@ -249,11 +271,17 @@ async def get_user_predictions(user_id: int, limit: int = 10) -> list[dict]:
 async def settle_match(match_id: int, result: str, all_user_ids: list[int]) -> dict:
     """
     Tính điểm cho một trận đã có kết quả.
-    Người đoán đúng: +delta, người đoán sai/không đoán: -POINTS_DEDUCT
+    Người đoán đúng: +delta, người đoán sai/không đoán: -deduct (theo stage)
     Trả về dict summary.
     """
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
+
+        # Lấy stage của trận để xác định mức điểm
+        async with db.execute("SELECT stage FROM matches WHERE match_id=?", (match_id,)) as cur:
+            row = await cur.fetchone()
+            stage = row["stage"] if row else "GROUP_STAGE"
+        DEDUCT = get_deduct(stage)
 
         # Lấy tất cả dự đoán của trận
         async with db.execute(
@@ -272,7 +300,7 @@ async def settle_match(match_id: int, result: str, all_user_ids: list[int]) -> d
         all_wrong   = len(correct_users) == 0
         no_change   = all_correct or all_wrong
 
-        total_deducted  = 0 if no_change else total_losers * POINTS_DEDUCT
+        total_deducted  = 0 if no_change else total_losers * DEDUCT
         gain_per_winner = (total_deducted / len(correct_users)) if (correct_users and not no_change) else 0
 
         if not no_change:
@@ -291,17 +319,17 @@ async def settle_match(match_id: int, result: str, all_user_ids: list[int]) -> d
                 await db.execute("""
                     UPDATE predictions SET is_correct = 0, points_delta = ?
                     WHERE user_id = ? AND match_id = ?
-                """, (-POINTS_DEDUCT, uid, match_id))
+                """, (-DEDUCT, uid, match_id))
                 await db.execute(
                     "UPDATE users SET points = points - ? WHERE user_id = ?",
-                    (POINTS_DEDUCT, uid)
+                    (DEDUCT, uid)
                 )
 
             # Người không đoán: trừ điểm nhưng KHÔNG insert prediction
             for uid in no_pred_users:
                 await db.execute(
                     "UPDATE users SET points = points - ? WHERE user_id = ?",
-                    (POINTS_DEDUCT, uid)
+                    (DEDUCT, uid)
                 )
         else:
             # Vẫn đánh dấu is_correct nhưng delta = 0
