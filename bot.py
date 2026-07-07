@@ -105,7 +105,7 @@ async def cmd_diem(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_dudoan(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await ensure_user(update)
-    preds = await db.get_user_predictions(update.effective_user.id, 10)
+    preds = await db.get_user_predictions(update.effective_user.id, 999)
     if not preds:
         await update.message.reply_text("Bạn chưa có dự đoán nào.")
         return
