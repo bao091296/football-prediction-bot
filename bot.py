@@ -551,32 +551,29 @@ async def cmd_fix_points(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_recalc_all(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Reset điểm toàn bộ user về 0, tính lại từ tất cả trận FINISHED."""
+    """Reset điểm toàn bộ user về 0, tính lại từ tất cả trận FINISHED (dùng stage-based deduct)."""
     if not is_admin(update.effective_user.id):
         return
     import aiosqlite
-    from config import DB_PATH, POINTS_DEDUCT
+    from config import DB_PATH
+    from database import get_deduct
 
     await update.message.reply_text("⏳ Đang tính lại toàn bộ điểm...")
 
     async with aiosqlite.connect(DB_PATH) as conn:
         conn.row_factory = aiosqlite.Row
 
-        # Reset tất cả điểm về 0
         await conn.execute("UPDATE users SET points = 0")
-        # Reset tất cả predictions về chưa tính
         await conn.execute("UPDATE predictions SET is_correct = NULL, points_delta = NULL")
         await conn.commit()
 
-        # Lấy tất cả trận FINISHED có result, theo thứ tự thời gian
         async with conn.execute("""
-            SELECT match_id, result FROM matches
+            SELECT match_id, result, stage FROM matches
             WHERE status = 'FINISHED' AND result IS NOT NULL
             ORDER BY match_time ASC
         """) as cur:
             finished = await cur.fetchall()
 
-        # Lấy tất cả user_ids
         async with conn.execute("SELECT user_id FROM users") as cur:
             all_user_ids = [r["user_id"] for r in await cur.fetchall()]
 
@@ -585,21 +582,21 @@ async def cmd_recalc_all(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         for m in finished:
             match_id = m["match_id"]
             result   = m["result"]
+            deduct   = get_deduct(m["stage"])
 
-            # Lấy predictions của trận này
             async with conn.execute(
                 "SELECT user_id, prediction FROM predictions WHERE match_id = ?", (match_id,)
             ) as cur:
                 preds = {r["user_id"]: r["prediction"] for r in await cur.fetchall()}
 
-            correct   = [uid for uid, p in preds.items() if p == result]
-            wrong     = [uid for uid, p in preds.items() if p != result]
-            no_pred   = [uid for uid in all_user_ids if uid not in preds]
+            correct      = [uid for uid, p in preds.items() if p == result]
+            wrong        = [uid for uid, p in preds.items() if p != result]
+            no_pred      = [uid for uid in all_user_ids if uid not in preds]
             total_losers = len(wrong) + len(no_pred)
-            no_change = not correct or not wrong
+            no_change    = not correct or not wrong
 
-            gain  = (total_losers * POINTS_DEDUCT / len(correct)) if (correct and not no_change) else 0
-            deduct = 0 if no_change else POINTS_DEDUCT
+            gain = (total_losers * deduct / len(correct)) if (correct and not no_change) else 0
+            d    = 0 if no_change else deduct
 
             for uid in correct:
                 delta = gain if not no_change else 0
@@ -607,20 +604,18 @@ async def cmd_recalc_all(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 if delta:
                     await conn.execute("UPDATE users SET points=points+? WHERE user_id=?", (delta, uid))
             for uid in wrong:
-                delta = -deduct
-                await conn.execute("UPDATE predictions SET is_correct=0, points_delta=? WHERE user_id=? AND match_id=?", (delta, uid, match_id))
-                if deduct:
-                    await conn.execute("UPDATE users SET points=points-? WHERE user_id=?", (deduct, uid))
+                await conn.execute("UPDATE predictions SET is_correct=0, points_delta=? WHERE user_id=? AND match_id=?", (-d, uid, match_id))
+                if d:
+                    await conn.execute("UPDATE users SET points=points-? WHERE user_id=?", (d, uid))
             for uid in no_pred:
-                if deduct:
-                    await conn.execute("UPDATE users SET points=points-? WHERE user_id=?", (deduct, uid))
+                if d:
+                    await conn.execute("UPDATE users SET points=points-? WHERE user_id=?", (d, uid))
 
-            note = " (không tính điểm)" if no_change else f" +{gain:.1f}đ/{len(correct)} đúng, -{deduct}đ/{total_losers} sai"
-            lines.append(f"• Trận #{match_id}: {result}{note}")
+            note = " (không tính điểm)" if no_change else f" +{gain:.1f}đ/{len(correct)} đúng, -{d}đ/{total_losers} sai"
+            lines.append(f"• Trận #{match_id} [{m['stage']}]: {result}{note}")
 
         await conn.commit()
 
-        # Bảng xếp hạng mới
         async with conn.execute("SELECT full_name, points FROM users ORDER BY points DESC") as cur:
             board = await cur.fetchall()
 
