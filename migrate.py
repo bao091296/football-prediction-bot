@@ -61,37 +61,32 @@ def calc_expected():
 
 async def main():
     print("=== migrate.py bắt đầu ===", flush=True)
-    expected = calc_expected()
-    print(f"Điểm kỳ vọng: {expected}", flush=True)
 
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
 
-        # Kiểm tra điểm hiện tại
-        needs_fix = False
-        for uid, exp in expected.items():
-            async with db.execute("SELECT points FROM users WHERE user_id=?", (uid,)) as cur:
-                row = await cur.fetchone()
-                if row is None or abs(row["points"] - exp) > 0.01:
-                    needs_fix = True
-                    current = row["points"] if row else "N/A"
-                    print(f"  ⚠️  user {uid}: hiện tại={current}, kỳ vọng={exp}", flush=True)
+        # Chỉ chạy nếu chưa có predictions cho 2 trận lịch sử
+        async with db.execute(
+            "SELECT COUNT(*) as c FROM predictions p "
+            "JOIN matches m ON p.match_id=m.match_id "
+            "WHERE m.ext_id IN ('553123','553124')"
+        ) as cur:
+            row = await cur.fetchone()
+            if row["c"] >= 16:
+                print("✅ Dữ liệu lịch sử đã có, bỏ qua.", flush=True)
+                return
 
-        if not needs_fix:
-            print("✅ Điểm đã đúng, bỏ qua.", flush=True)
-            return
+        print("🔄 Seed dữ liệu lịch sử lần đầu...", flush=True)
 
-        print("🔄 Bắt đầu fix dữ liệu...", flush=True)
+        expected = calc_expected()
 
-        # UPSERT 8 voters với điểm đúng trực tiếp
+        # Chỉ INSERT user nếu chưa tồn tại, KHÔNG ghi đè điểm
         for uid, uname, fname in VOTERS:
-            pts = expected[uid]
             await db.execute(
-                "INSERT INTO users (user_id, username, full_name, points) VALUES (?,?,?,?) "
-                "ON CONFLICT(user_id) DO UPDATE SET points=excluded.points",
-                (uid, uname, fname, pts)
+                "INSERT OR IGNORE INTO users (user_id, username, full_name, points) VALUES (?,?,?,0)",
+                (uid, uname, fname)
             )
-            print(f"  ✓ {fname} ({uid}): {pts:+.1f}đ", flush=True)
+            print(f"  ✓ {fname} ({uid}) — đã insert (nếu chưa có)", flush=True)
 
         # UPSERT matches với kết quả đúng
         for m in MATCHES:
@@ -124,6 +119,11 @@ async def main():
                 )
 
             print(f"⚽ {m['home']} vs {m['away']}: {len(correct)} đúng (+{gain:.1f}đ), {len(wrong)} sai (-{DEDUCT}đ)", flush=True)
+
+        # Cập nhật điểm ban đầu từ 2 trận lịch sử
+        for uid, pts in expected.items():
+            await db.execute("UPDATE users SET points=? WHERE user_id=?", (pts, uid))
+            print(f"  💰 User {uid}: {pts:+.1f}đ", flush=True)
 
         await db.commit()
 

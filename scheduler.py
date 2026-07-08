@@ -227,7 +227,7 @@ async def build_result_message(match: dict, summary: dict) -> str:
     lines.append("")
 
     if wrong_ids:
-        deduct_label = "±0đ" if no_change else "-50đ mỗi người"
+        deduct_label = "±0đ" if no_change else f"-{summary.get('deduct',50):.0f}đ mỗi người"
         lines.append(f"❌ <b>Đoán sai ({len(wrong_ids)} người) {deduct_label}:</b>")
         for uid in wrong_ids:
             u = users.get(uid, {"full_name": f"#{uid}", "username": ""})
@@ -235,7 +235,7 @@ async def build_result_message(match: dict, summary: dict) -> str:
         lines.append("")
 
     if no_pred_ids:
-        deduct_label = "±0đ" if no_change else "-50đ mỗi người"
+        deduct_label = "±0đ" if no_change else f"-{summary.get('deduct',50):.0f}đ mỗi người"
         lines.append(f"⏭️ <b>Không tham gia ({len(no_pred_ids)} người) {deduct_label}:</b>")
         for uid in no_pred_ids:
             u = users.get(uid, {"full_name": f"#{uid}", "username": ""})

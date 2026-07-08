@@ -353,6 +353,7 @@ async def settle_match(match_id: int, result: str, all_user_ids: list[int]) -> d
         "gain_per_winner": gain_per_winner,
         "total_deducted": total_deducted,
         "no_change": no_change,
+        "deduct": DEDUCT,
     }
 
 
