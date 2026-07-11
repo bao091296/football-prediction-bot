@@ -65,6 +65,41 @@ async def main():
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
 
+        # Tạo bảng nếu chưa có (migrate.py chạy trước init_db)
+        await db.executescript("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                full_name TEXT,
+                points REAL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS matches (
+                match_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ext_id TEXT UNIQUE,
+                home_team TEXT NOT NULL,
+                away_team TEXT NOT NULL,
+                competition TEXT,
+                match_time TEXT,
+                status TEXT DEFAULT 'SCHEDULED',
+                result TEXT,
+                home_score INTEGER,
+                away_score INTEGER,
+                chat_id INTEGER,
+                poll_message_id INTEGER,
+                poll_id TEXT,
+                stage TEXT DEFAULT 'GROUP_STAGE'
+            );
+            CREATE TABLE IF NOT EXISTS predictions (
+                pred_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                match_id INTEGER,
+                prediction TEXT,
+                is_correct INTEGER,
+                points_delta REAL,
+                UNIQUE(user_id, match_id)
+            );
+        """)
+
         # Chỉ chạy nếu chưa có predictions cho 2 trận lịch sử
         async with db.execute(
             "SELECT COUNT(*) as c FROM predictions p "
