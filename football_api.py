@@ -86,12 +86,7 @@ def _parse_match(m: dict, competition: str) -> dict:
         # fullTime của API = kết quả SAU hiệp phụ/penalty → phải dùng regularTime (90 phút)
         home_score = reg.get("home")
         away_score = reg.get("away")
-        # Một số trận API trả regularTime=null dù duration=EXTRA_TIME
-        # → trận đi ET = hòa sau 90 phút (không hòa thì không có ET)
-        # KHÔNG dùng halfTime — đó là tỉ số 45 phút, không phải 90 phút
-        if home_score is None or away_score is None:
-            home_score = 0
-            away_score = 0  # force DRAW outcome, tỉ số thực không lấy được từ API
+
     else:
         # Trận kết thúc trong 90 phút → fullTime chính là 90 phút
         home_score = full.get("home")
