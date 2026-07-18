@@ -32,7 +32,7 @@ def format_match_time(utc_str: str) -> str:
 STAGE_LABEL = {
     "QUARTER_FINALS": "Tứ kết 🔥 ±100đ",
     "SEMI_FINALS":    "Bán kết 💥 ±150đ",
-    "THIRD_PLACE":    "Hạng ba 💥 ±150đ",
+    "THIRD_PLACE":    "Hạng ba 🏆 ±300đ",
     "FINAL":          "Chung kết 🏆 ±300đ",
 }
 

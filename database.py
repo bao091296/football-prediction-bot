@@ -8,7 +8,7 @@ STAGE_DEDUCT = {
     "ROUND_OF_16":   50,
     "QUARTER_FINALS": 100,
     "SEMI_FINALS":   150,
-    "THIRD_PLACE":   150,
+    "THIRD_PLACE":   300,
     "FINAL":         300,
 }
 
