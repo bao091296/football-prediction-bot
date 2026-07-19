@@ -19,7 +19,7 @@ from helpers import (
     build_poll_question, build_poll_options, build_result_text,
     OPTION_INDEX_TO_CODE, PRED_CODE_TO_LABEL, name_display, format_match_time,
 )
-from config import TELEGRAM_BOT_TOKEN, ADMIN_IDS, POLL_CLOSE_MINUTES_BEFORE, CHAT_THREAD_ID
+from config import TELEGRAM_BOT_TOKEN, ADMIN_IDS, POLL_CLOSE_MINUTES_BEFORE, CHAT_THREAD_ID, ALLOWED_USER_IDS
 import scheduler as sched
 
 logging.basicConfig(
@@ -39,15 +39,22 @@ def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
 
-async def ensure_user(update: Update):
+def is_allowed(user_id: int) -> bool:
+    return user_id in ALLOWED_USER_IDS or user_id in ADMIN_IDS
+
+async def ensure_user(update: Update) -> bool:
     user = update.effective_user
+    if not is_allowed(user.id):
+        return False
     await db.upsert_user(user.id, user.username or "", user.full_name or "")
+    return True
 
 
 # ── Lệnh người dùng ────────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await ensure_user(update)
+    if not await ensure_user(update):
+        return
     chat = update.effective_chat
     if chat.type in ("group", "supergroup"):
         await db.register_group(chat.id)
@@ -86,7 +93,8 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_diem(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await ensure_user(update)
+    if not await ensure_user(update):
+        return
     board = await db.get_leaderboard(20)
     if not board:
         await update.message.reply_text("Chưa có dữ liệu điểm.")
@@ -104,7 +112,8 @@ async def cmd_diem(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def cmd_dudoan(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await ensure_user(update)
+    if not await ensure_user(update):
+        return
     preds = await db.get_user_predictions(update.effective_user.id, 999)
     if not preds:
         await update.message.reply_text("Bạn chưa có dự đoán nào.")
@@ -693,6 +702,9 @@ async def handle_poll_answer(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     answer  = update.poll_answer
     poll_id = answer.poll_id
     user    = answer.user
+
+    if not is_allowed(user.id):
+        return
 
     await db.upsert_user(user.id, user.username or "", user.full_name or "")
 

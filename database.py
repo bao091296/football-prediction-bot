@@ -1,7 +1,7 @@
 import aiosqlite
 import asyncio
 from datetime import datetime
-from config import DB_PATH, POINTS_DEDUCT
+from config import DB_PATH, POINTS_DEDUCT, ALLOWED_USER_IDS
 
 STAGE_DEDUCT = {
     "GROUP_STAGE":   50,
@@ -374,9 +374,7 @@ async def get_all_groups() -> list[int]:
 
 
 async def get_all_active_users() -> list[int]:
-    async with aiosqlite.connect(DB_PATH) as db:
-        async with db.execute("SELECT user_id FROM users") as cur:
-            return [r[0] for r in await cur.fetchall()]
+    return list(ALLOWED_USER_IDS)
 
 
 async def get_match_by_ext_id(ext_id: str) -> dict | None:

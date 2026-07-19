@@ -29,3 +29,18 @@ DB_PATH = os.getenv("DB_PATH", "football_bot.db")
 
 # Múi giờ (Asia/Ho_Chi_Minh = UTC+7)
 TIMEZONE = "Asia/Ho_Chi_Minh"
+
+# Whitelist người chơi — chỉ các user_id này mới được tương tác với bot
+ALLOWED_USER_IDS = {
+    1682575734,  # Alie
+    822425008,   # Andy
+    5200492637,  # Aron
+    1800116341,  # Bugi | Coincu
+    5138244411,  # Hercules
+    1528481986,  # Kien Vu
+    5031836927,  # Leonn
+    1065810166,  # Thana Who
+    1762927178,  # Tommy
+    934622455,   # Vịt Tư Mã
+    8814280223,  # Zane
+}
